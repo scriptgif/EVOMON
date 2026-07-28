@@ -1,7 +1,9 @@
 -- =================================================================
--- 1. BIBLIOTECAS E SERVIÇOS
+-- 1. BIBLIOTECAS E SERVIÇOS (Otimizado para Arceus X / Mobile)
 -- =================================================================
-local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("Evomon - Control Panel (Mobile)", "Midnight")
+
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -115,93 +117,42 @@ task.spawn(function()
 end)
 
 -- =================================================================
--- 5. INTERFACE GRÁFICA (ORION UI)
+-- 5. INTERFACE GRÁFICA (KAVO UI - MOBILE FRIENDLY)
 -- =================================================================
-local Window = OrionLib:MakeWindow({
-    Name = "Evomon - Control Panel", 
-    HidePremium = false, 
-    SaveConfig = true, 
-    ConfigFolder = "EvomonConfig"
-})
 
 -- ABA 1: TARGET
-local TargetTab = Window:MakeTab({
-    Name = "Evomons & Alvos",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+local Tab1 = Window:NewTab("Evomons")
+local Sec1 = Tab1:NewSection("Seleção e Movimentação")
 
-TargetTab:AddSection({ Name = "Seleção e Movimentação" })
+Sec1:NewDropdown("Selecionar Evomon", "Escolha o alvo", {"Nenhum", "Todos", "Leafbu", "Blazpu", "Bubble"}, function(Value)
+    evomonSelecionado = Value
+end)
 
-TargetTab:AddDropdown({
-    Name = "Selecionar Evomon",
-    Default = "Nenhum",
-    Options = {"Nenhum", "Todos", "Leafbu", "Blazpu", "Bubble"},
-    Callback = function(Value)
-        evomonSelecionado = Value
-    end
-})
-
-TargetTab:AddToggle({
-    Name = "Ir até o Evomon Selecionado",
-    Default = false,
-    Callback = function(State)
-        autoIrAteEvomon = State
-    end
-})
+Sec1:NewToggle("Ir até o Evomon", "Caminha até o alvo", function(State)
+    autoIrAteEvomon = State
+end)
 
 -- ABA 2: TELEPORTES
-local TeleportTab = Window:MakeTab({
-    Name = "Teleportes",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+local Tab2 = Window:NewTab("Teleportes")
+local Sec2 = Tab2:NewSection("Locais do Mapa")
 
-TeleportTab:AddSection({ Name = "Locais do Mapa" })
+Sec2:NewDropdown("Selecione o Destino", "Escolha a ilha", {"Verdant (Mundo 1)", "Mundo 2", "Centro de Trocas", "Arena Global"}, function(Value)
+    ilhaSelecionada = Value
+end)
 
-TeleportTab:AddDropdown({
-    Name = "Selecione o Destino",
-    Default = "Verdant (Mundo 1)",
-    Options = {"Verdant (Mundo 1)", "Mundo 2", "Centro de Trocas", "Arena Global"},
-    Callback = function(Value)
-        ilhaSelecionada = Value
-    end
-})
-
-TeleportTab:AddButton({
-    Name = "Teleportar Agora",
-    Callback = function()
-        local pos = LocaisEvomon[ilhaSelecionada]
-        if pos then teleportarPara(pos) end
-    end
-})
+Sec2:NewButton("Teleportar Agora", "Move seu personagem", function()
+    local pos = LocaisEvomon[ilhaSelecionada]
+    if pos then teleportarPara(pos) end
+end)
 
 -- ABA 3: AUTO FARM
-local AutoFarmTab = Window:MakeTab({
-    Name = "Auto Farm",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
+local Tab3 = Window:NewTab("Auto Farm")
+local Sec3 = Tab3:NewSection("Automação de Batalha")
 
-AutoFarmTab:AddSection({ Name = "Automação de Batalha" })
+Sec3:NewToggle("Auto Attack", "Ataque automático", function(State)
+    autoAttack = State
+end)
 
-AutoFarmTab:AddToggle({
-    Name = "Auto Attack",
-    Default = false,
-    Callback = function(State)
-        autoAttack = State
-    end
-})
-
-AutoFarmTab:AddToggle({
-    Name = "Auto Catch (Captura)",
-    Default = false,
-    Callback = function(State)
-        autoCatch = State
-    end
-})
-
--- =================================================================
--- 6. INICIALIZAÇÃO DA INTERFACE
--- =================================================================
-OrionLib:Init()
+Sec3:NewToggle("Auto Catch", "Captura automática", function(State)
+    autoCatch = State
+end)

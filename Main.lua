@@ -1,209 +1,161 @@
 -- =================================================================
--- 1. BIBLIOTECAS E SERVIÇOS
+-- EVOMON HUB 🐺 (Baseado nas telas reais do jogo)
 -- =================================================================
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-local Window = Library.CreateLib("EVOMON HUB 🐺", "BloodTheme")
-
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local player = Players.LocalPlayer
 
--- =================================================================
--- 2. VARIÁVEIS DE ESTADO
--- =================================================================
-local evomonSelecionado = "Nenhum"
+-- VARIÁVEIS DE CONFIGURAÇÃO
 local autoIrAteEvomon = false
 local autoAttack = false
 local autoCatch = false
 
-local listaEvomons = {
-    "Todos", "Nenhum",
-    "Leafbu", "Leafine", "Florasaur",
-    "Blazpu", "Infernus", "Pyrosaur",
-    "Bubble", "Aquafish", "Hydrodon",
-    "Graveling", "Golemot", "Sparky", "Voltigo",
-    "Frosty", "Icebeak", "Shadowling", "Grimclaw",
-    "Pebble", "Boulder", "Zephyr", "Aerojet",
-    "Lumina", "Solaur", "Duskling", "Vortex"
-}
+-- =================================================================
+-- 1. FUNÇÃO DE ANDAR ATÉ O MONSTRO NO MAPA
+-- =================================================================
+local function irAteMonstroProximo()
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = char.HumanoidRootPart
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local menorDistancia = math.huge
+    local posicaoAlvo = nil
+
+    -- Varre os objetos do mapa procurando modelos de monstros com Humanoid ou partes principais
+    for _, obj in pairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj ~= char and not Players:GetPlayerFromCharacter(obj) then
+            -- Procura por parte física do monstro
+            local parte = obj:FindFirstChild("HumanoidRootPart") or obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if parte then
+                local dist = (hrp.Position - parte.Position).Magnitude
+                -- Filtra por monstros próximos (evita alvos infinitamente distantes)
+                if dist < menorDistancia and dist > 3 then
+                    menorDistancia = dist
+                    posicaoAlvo = parte.Position
+                end
+            end
+        end
+    end
+
+    -- Se achou o monstro, faz o personagem andar direto até a exclamação/corpo dele
+    if posicaoAlvo and hum then
+        hum:MoveTo(posicaoAlvo)
+    end
+end
 
 -- =================================================================
--- 3. BOTÃO FLUTUANTE (TOGGLE UI HOHO STYLE)
+-- 2. LOOPS DE AUTOMAÇÃO
 -- =================================================================
+
+-- Loop 1: Ir até o monstro no mapa (Entrar em batalha)
+task.spawn(function()
+    while task.wait(0.3) do
+        if autoIrAteEvomon then
+            irAteMonstroProximo()
+        end
+    end
+end)
+
+-- Loop 2: Auto Batalha / Ataque (Aciona a interface da batalha)
+task.spawn(function()
+    while task.wait(0.5) do
+        if autoAttack then
+            pcall(function()
+                local playerGui = player:FindFirstChildOfClass("PlayerGui")
+                if playerGui then
+                    -- Procura pelo botão AUTOMÁTICO na interface de Batalha (visível na print)
+                    for _, gui in pairs(playerGui:GetDescendants()) do
+                        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                            local nomeLower = string.lower(gui.Name)
+                            local textoLower = (gui:IsA("TextButton") and string.lower(gui.Text)) or ""
+                            
+                            -- Se encontrar o botão 'Automático' ou botões de skill, simula o clique
+                            if string.find(nomeLower, "auto") or string.find(textoLower, "automático") or string.find(textoLower, "automatico") then
+                                local pos = gui.AbsolutePosition
+                                local size = gui.AbsoluteSize
+                                VirtualInputManager:SendMouseButtonEvent(pos.X + size.X/2, pos.Y + size.Y/2, 0, true, game, 0)
+                                VirtualInputManager:SendMouseButtonEvent(pos.X + size.X/2, pos.Y + size.Y/2, 0, false, game, 0)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- Loop 3: Auto Catch (Simula toque no botão 'Catch' e arremesso)
+task.spawn(function()
+    while task.wait(0.5) do
+        if autoCatch then
+            pcall(function()
+                local playerGui = player:FindFirstChildOfClass("PlayerGui")
+                if playerGui then
+                    for _, gui in pairs(playerGui:GetDescendants()) do
+                        if gui:IsA("TextButton") or gui:IsA("ImageButton") then
+                            local nomeLower = string.lower(gui.Name)
+                            local textoLower = (gui:IsA("TextButton") and string.lower(gui.Text)) or ""
+                            
+                            -- Clica no botão Catch central que aparece na foto 4
+                            if string.find(nomeLower, "catch") or string.find(textoLower, "catch") then
+                                local pos = gui.AbsolutePosition
+                                local size = gui.AbsoluteSize
+                                VirtualInputManager:SendMouseButtonEvent(pos.X + size.X/2, pos.Y + size.Y/2, 0, true, game, 0)
+                                VirtualInputManager:SendMouseButtonEvent(pos.X + size.X/2, pos.Y + size.Y/2, 0, false, game, 0)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- =================================================================
+-- 3. INTERFACE GRÁFICA (KAVO UI)
+-- =================================================================
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+local Window = Library.CreateLib("EVOMON HUB 🐺", "BloodTheme")
+
+-- BOTÃO FLUTUANTE (TOGGLE HOHO STYLE)
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleBtn = Instance.new("TextButton")
 
-ScreenGui.Name = "EvomonHubGui"
+ScreenGui.Name = "EvomonHubToggle"
 ScreenGui.Parent = game:GetService("CoreGui") or player:FindFirstChildOfClass("PlayerGui")
-ScreenGui.ResetOnSpawn = false
 
-ToggleBtn.Name = "ToggleHub"
+ToggleBtn.Name = "BtnToggle"
 ToggleBtn.Parent = ScreenGui
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-ToggleBtn.Position = UDim2.new(0, 10, 0, 150)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(180, 0, 0)
+ToggleBtn.Position = UDim2.new(0, 10, 0, 200)
 ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.Font = Enum.Font.SourceSansBold
 ToggleBtn.Text = "🐺"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.TextSize = 25
 ToggleBtn.Active = true
-ToggleBtn.Draggable = true -- Permite arrastar o botão flutuante para qualquer lugar
+ToggleBtn.Draggable = true
 
 ToggleBtn.MouseButton1Click:Connect(function()
     Library:ToggleUI()
 end)
 
--- =================================================================
--- 4. FUNÇÕES DE MOVIMENTAÇÃO E BUSCA
--- =================================================================
+-- ABAS SIMPLIFICADAS E DIRETAS
+local Tab1 = Window:NewTab("Auto Evomon")
+local Sec1 = Tab1:NewSection("Movimentação no Mapa")
 
-local function getCharacterParts()
-    local character = player.Character or player.CharacterAdded:Wait()
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    local humanoid = character:FindFirstChildOfClass("Humanoid")
-    return character, hrp, humanoid
-end
-
--- Busca avançada por Evomons dentro de pastas ou soltos no Workspace
-local function obterEvomonAlvo(nomeEvomon)
-    local _, hrp, _ = getCharacterParts()
-    if not hrp or nomeEvomon == "Nenhum" then return nil end
-
-    local alvoMaisProximo = nil
-    local menorDistancia = math.huge
-
-    local function checarModelo(objeto)
-        if objeto:IsA("Model") and objeto ~= player.Character then
-            local nomeValido = (nomeEvomon == "Todos") or (string.lower(objeto.Name) == string.lower(nomeEvomon))
-            if nomeValido then
-                local parteBase = objeto:FindFirstChild("HumanoidRootPart") 
-                               or objeto.PrimaryPart 
-                               or objeto:FindFirstChildWhichIsA("BasePart")
-                if parteBase then
-                    local dist = (hrp.Position - parteBase.Position).Magnitude
-                    if dist < menorDistancia then
-                        menorDistancia = dist
-                        alvoMaisProximo = objeto
-                    end
-                end
-            end
-        end
-    end
-
-    -- Varre Workspace e pastas internas (ex: Spawns/Wilds)
-    for _, obj in pairs(Workspace:GetChildren()) do
-        checarModelo(obj)
-        if obj:IsA("Folder") or obj:IsA("Model") then
-            for _, subObj in pairs(obj:GetChildren()) do
-                checarModelo(subObj)
-            end
-        end
-    end
-
-    return alvoMaisProximo
-end
-
--- Movimentação direta ajustada
-local function irAteEvomon(modeloEvomon)
-    local character, hrp, humanoid = getCharacterParts()
-    if not hrp or not modeloEvomon then return end
-
-    local parteAlvo = modeloEvomon:FindFirstChild("HumanoidRootPart") 
-                     or modeloEvomon.PrimaryPart 
-                     or modeloEvomon:FindFirstChildWhichIsA("BasePart")
-    
-    if parteAlvo then
-        local distancia = (hrp.Position - parteAlvo.Position).Magnitude
-        
-        -- Se estiver longe, teleporta/move até ficar colado no monstro
-        if distancia > 4 then
-            if humanoid then
-                humanoid:MoveTo(parteAlvo.Position)
-            end
-            -- Garante a aproximação suave
-            hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(parteAlvo.Position.X, hrp.Position.Y, parteAlvo.Position.Z))
-        end
-    end
-end
-
--- =================================================================
--- 5. LOOPS DE AUTOMAÇÃO
--- =================================================================
-
--- Loop: Aproximação do Evomon
-task.spawn(function()
-    while true do
-        if autoIrAteEvomon and evomonSelecionado ~= "Nenhum" then
-            local alvo = obterEvomonAlvo(evomonSelecionado)
-            if alvo then 
-                irAteEvomon(alvo) 
-            end
-        end
-        task.wait(0.1)
-    end
+Sec1:NewToggle("Ir até o Evomon Próximo", "Caminha até os monstros com exclamação", function(state)
+    autoIrAteEvomon = state
 end)
 
--- Loop: Auto Attack Corrigido
-task.spawn(function()
-    while true do
-        if autoAttack then
-            -- 1. Tenta acionar remotes de ataque
-            for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
-                if obj:IsA("RemoteEvent") and (string.find(string.lower(obj.Name), "attack") or string.find(string.lower(obj.Name), "battle") or string.find(string.lower(obj.Name), "skill")) then
-                    obj:FireServer()
-                elseif obj:IsA("RemoteFunction") and (string.find(string.lower(obj.Name), "attack") or string.find(string.lower(obj.Name), "battle")) then
-                    pcall(function() obj:InvokeServer() end)
-                end
-            end
-            
-            -- 2. Simula o clique de ataque na tela para batalhas por turno/interativas
-            VirtualUser:Button1Down(Vector2.new(0, 0))
-            task.wait(0.05)
-            VirtualUser:Button1Up(Vector2.new(0, 0))
-        end
-        task.wait(0.2)
-    end
+local Tab2 = Window:NewTab("Auto Farm")
+local Sec2 = Tab2:NewSection("Automação de Batalha")
+
+Sec2:NewToggle("Auto Attack (Ativa Automático)", "Liga a batalha automática na luta", function(state)
+    autoAttack = state
 end)
 
--- Loop: Auto Catch
-task.spawn(function()
-    while true do
-        if autoCatch then
-            for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
-                if obj:IsA("RemoteEvent") and (string.find(string.lower(obj.Name), "catch") or string.find(string.lower(obj.Name), "ball") or string.find(string.lower(obj.Name), "capture")) then
-                    obj:FireServer("AdvancedBall")
-                end
-            end
-        end
-        task.wait(0.8)
-    end
-end)
-
--- =================================================================
--- 6. INTERFACE GRÁFICA
--- =================================================================
-
-local TabEvomon = Window:NewTab("Auto Evomon")
-local SecEvomon = TabEvomon:NewSection("Detecção & Movimento")
-
-SecEvomon:NewDropdown("Selecionar Evomon", "Escolha o alvo", listaEvomons, function(Value)
-    evomonSelecionado = Value
-end)
-
-SecEvomon:NewToggle("Ir até o Evomon", "Aproxima do monstro", function(State)
-    autoIrAteEvomon = State
-end)
-
-local TabFarm = Window:NewTab("Auto Farm")
-local SecFarm = TabFarm:NewSection("Combate & Captura")
-
-SecFarm:NewToggle("Auto Attack", "Ataca na batalha", function(State)
-    autoAttack = State
-end)
-
-SecFarm:NewToggle("Auto Catch", "Arremessa bola", function(State)
-    autoCatch = State
+Sec2:NewToggle("Auto Catch", "Clica no botão Catch na captura", function(state)
+    autoCatch = state
 end)

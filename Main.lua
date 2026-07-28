@@ -1,116 +1,34 @@
--- Carrega a Biblioteca de UI (Exemplo: Orion Library)
+-- =================================================================
+-- 1. BIBLIOTECAS E SERVIÇOS
+-- =================================================================
 local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
-
--- Cria a Janela Principal do Painel
-local Window = OrionLib:MakeWindow({
-    Name = "Evomon - Control Panel", 
-    HidePremium = false, 
-    SaveConfig = true, 
-    ConfigFolder = "EvomonConfig"
-})
-
--- =================================================================
--- ABAS DO PAINEL
--- =================================================================
-
--- Aba 1: Teleportes
-local TeleportTab = Window:MakeTab({
-    Name = "Teleportes",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
-
--- Aba 2: Seleção & Busca de Evomons
-local TargetTab = Window:MakeTab({
-    Name = "Evomons & Alvos",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
-
--- Aba 3: Automação (Combate e Captura)
-local AutoFarmTab = Window:MakeTab({
-    Name = "Auto Farm",
-    Icon = "rbxassetid://4483345998",
-    PremiumOnly = false
-})
-
--- =================================================================
--- ELEMENTOS INICIAIS DA INTERFACE
--- =================================================================
-
---- ABAS DE TELEPORTE ---
-TeleportTab:AddSection({
-    Name = "Teleporte para Ilhas/Biomas"
-})
-
--- Exemplo de seletor de ilhas (preencheremos com as coordenadas reais depois)
-TeleportTab:AddDropdown({
-    Name = "Selecione a Ilha",
-    Default = "Verdant",
-    Options = {"Verdant", "Mundo 2", "Arena Global", "Centro de Trocas"},
-    Callback = function(Value)
-        print("Ilha selecionada:", Value)
-    end
-})
-
-TeleportTab:AddButton({
-    Name = "Teleportar para a Ilha Selecionada",
-    Callback = function()
-        print("Executando teleporte...")
-    end
-})
-
---- ABAS DE EVOMONS & ALVOS ---
-TargetTab:AddSection({
-    Name = "Detecção e Seleção"
-})
-
-TargetTab:AddDropdown({
-    Name = "Selecionar Evomon Específico",
-    Default = "Nenhum",
-    Options = {"Nenhum", "Leafbu", "Blazpu", "Bubble"},
-    Callback = function(Value)
-        print("Alvo selecionado:", Value)
-    end
-})
-
-TargetTab:AddToggle({
-    Name = "Ir até o Evomon Selecionado",
-    Default = false,
-    Callback = function(State)
-        print("Busca por alvo:", State)
-    end
-})
-
---- ABAS DE AUTO FARM ---
-AutoFarmTab:AddSection({
-    Name = "Combate e Captura"
-})
-
-AutoFarmTab:AddToggle({
-    Name = "Atacar Automaticamente",
-    Default = false,
-    Callback = function(State)
-        print("Auto Attack:", State)
-    end
-})
-
-AutoFarmTab:AddToggle({
-    Name = "Capturar Automaticamente",
-    Default = false,
-    Callback = function(State)
-        print("Auto Catch:", State)
-    end
-})
-
--- Inicializa a Interface
-OrionLib:Init()
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 
--- Função para obter a posição atual do personagem do jogador
+-- =================================================================
+-- 2. VARIÁVEIS DE ESTADO
+-- =================================================================
+local evomonSelecionado = "Nenhum"
+local autoIrAteEvomon = false
+local ilhaSelecionada = "Verdant (Mundo 1)"
+local autoAttack = false
+local autoCatch = false
+
+-- Tabela de Coordenadas dos Teleportes
+local LocaisEvomon = {
+    ["Verdant (Mundo 1)"] = Vector3.new(100, 15, 200),
+    ["Mundo 2"]           = Vector3.new(500, 20, -1200),
+    ["Centro de Trocas"]  = Vector3.new(0, 5, 0),
+    ["Arena Global"]      = Vector3.new(-300, 10, 850)
+}
+
+-- =================================================================
+-- 3. FUNÇÕES AUXILIARES
+-- =================================================================
+
 local function getCharacterParts()
     local character = player.Character or player.CharacterAdded:Wait()
     local hrp = character:FindFirstChild("HumanoidRootPart")
@@ -118,20 +36,23 @@ local function getCharacterParts()
     return character, hrp, humanoid
 end
 
--- 1. Função para encontrar o Evomon mais próximo pelo nome
+local function teleportarPara(posicaoVector3)
+    local _, hrp, _ = getCharacterParts()
+    if hrp and posicaoVector3 then
+        hrp.CFrame = CFrame.new(posicaoVector3 + Vector3.new(0, 3, 0))
+    end
+end
+
 local function obterEvomonAlvo(nomeEvomon)
     local _, hrp, _ = getCharacterParts()
-    if not hrp then return nil end
+    if not hrp or nomeEvomon == "Nenhum" then return nil end
 
     local alvoMaisProximo = nil
     local menorDistancia = math.huge
 
-    -- Procura no Workspace (se os Evomons estiverem em uma pasta específica, ajuste 'Workspace' para a pasta)
     for _, objeto in pairs(Workspace:GetChildren()) do
-        -- Verifica se o modelo existe, tem o nome correto e possui uma parte principal (HumanoidRootPart ou PrimaryPart)
         if objeto:IsA("Model") and (nomeEvomon == "Todos" or objeto.Name == nomeEvomon) then
             local posicaoAlvo = objeto:FindFirstChild("HumanoidRootPart") or objeto.PrimaryPart or objeto:FindFirstChildWhichIsA("BasePart")
-            
             if posicaoAlvo then
                 local distancia = (hrp.Position - posicaoAlvo.Position).Magnitude
                 if distancia < menorDistancia then
@@ -145,103 +66,98 @@ local function obterEvomonAlvo(nomeEvomon)
     return alvoMaisProximo
 end
 
--- 2. Função para mover o personagem até o alvo
 local function irAteEvomon(modeloEvomon)
     local _, hrp, humanoid = getCharacterParts()
     if not hrp or not modeloEvomon then return end
 
     local parteAlvo = modeloEvomon:FindFirstChild("HumanoidRootPart") or modeloEvomon.PrimaryPart or modeloEvomon:FindFirstChildWhichIsA("BasePart")
-    if not parteAlvo then return end
-
-    -- Opção A: Caminhar naturalmente até a posição
-    if humanoid then
+    if parteAlvo and humanoid then
         humanoid:MoveTo(parteAlvo.Position)
     end
-
-    -- Opção B: Teleporte direto (comente a Opção A e descomente a linha abaixo se preferir ir instantaneamente)
-    -- hrp.CFrame = parteAlvo.CFrame * CFrame.new(0, 3, 0) -- Teleporta 3 blocos acima do alvo
 end
-local evomonSelecionado = "Leafbu" -- Nome definido pelo Dropdown
-local buscando = false
 
--- Exemplo do evento acionado pelo Toggle de "Ir até o Evomon"
-local function iniciarBusca(estado)
-    buscando = estado
-    
-    task.spawn(function()
-        while buscando do
+-- =================================================================
+-- 4. LOOPS ASSÍNCRONOS
+-- =================================================================
+
+task.spawn(function()
+    while true do
+        if autoIrAteEvomon and evomonSelecionado ~= "Nenhum" then
             local alvo = obterEvomonAlvo(evomonSelecionado)
-            
-            if alvo then
-                irAteEvomon(alvo)
-            end
-            
-            task.wait(1) -- Intervalo de checagem a cada 1 segundo
+            if alvo then irAteEvomon(alvo) end
         end
-    end)
-end
--- =================================================================
--- TABELA DE COORDENADAS (ILHAS / LOCAIS)
--- =================================================================
--- Substitua ou adicione os Vector3 de cada ilha/local conforme achar no jogo
-local LocaisEvomon = {
-    ["Verdant (Mundo 1)"] = Vector3.new(100, 15, 200),
-    ["Mundo 2"]           = Vector3.new(500, 20, -1200),
-    ["Centro de Trocas"]  = Vector3.new(0, 5, 0),
-    ["Arena Global"]      = Vector3.new(-300, 10, 850)
-}
-
-local ilhaSelecionada = "Verdant (Mundo 1)"
-
--- Função de Teleporte
-local function teleportarPara(posicaoVector3)
-    local _, hrp, _ = getCharacterParts()
-    if hrp and posicaoVector3 then
-        hrp.CFrame = CFrame.new(posicaoVector3 + Vector3.new(0, 3, 0)) -- Teleporta 3 blocos acima do chão
+        task.wait(0.5)
     end
-end
--- =================================================================
--- VARIÁVEIS DE AUTOMAÇÃO
--- =================================================================
-local autoAttack = false
-local autoCatch = false
+end)
 
--- ReplicatedStorage para acessar os eventos do jogo
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Loop de Combate Automático
 task.spawn(function()
     while true do
         if autoAttack then
-            -- Mapeie aqui o RemoteEvent de ataque do jogo (exemplo genérico)
             local eventoAtaque = ReplicatedStorage:FindFirstChild("AttackEvent", true) or ReplicatedStorage:FindFirstChild("BattleEvent", true)
-            
             if eventoAtaque and eventoAtaque:IsA("RemoteEvent") then
-                eventoAtaque:FireServer() -- Envia o comando de ataque
+                eventoAtaque:FireServer()
             end
         end
-        task.wait(0.2) -- Frequência dos ataques
+        task.wait(0.2)
     end
 end)
 
--- Loop de Captura Automática
 task.spawn(function()
     while true do
         if autoCatch then
-            -- Mapeie aqui o RemoteEvent de captura do jogo (exemplo genérico)
             local eventoCaptura = ReplicatedStorage:FindFirstChild("CatchEvent", true) or ReplicatedStorage:FindFirstChild("UseBall", true)
-            
             if eventoCaptura and eventoCaptura:IsA("RemoteEvent") then
-                eventoCaptura:FireServer("AdvancedBall") -- Substitua pelo nome da bola desejada
+                eventoCaptura:FireServer("AdvancedBall")
             end
         end
-        task.wait(1) -- Verifica/Aplica captura a cada 1 segundo
+        task.wait(1)
     end
 end)
---- ABA DE TELEPORTES ---
-TeleportTab:AddSection({
-    Name = "Locais do Mapa"
+
+-- =================================================================
+-- 5. INTERFACE GRÁFICA (ORION UI)
+-- =================================================================
+local Window = OrionLib:MakeWindow({
+    Name = "Evomon - Control Panel", 
+    HidePremium = false, 
+    SaveConfig = true, 
+    ConfigFolder = "EvomonConfig"
 })
+
+-- ABA 1: TARGET
+local TargetTab = Window:MakeTab({
+    Name = "Evomons & Alvos",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+TargetTab:AddSection({ Name = "Seleção e Movimentação" })
+
+TargetTab:AddDropdown({
+    Name = "Selecionar Evomon",
+    Default = "Nenhum",
+    Options = {"Nenhum", "Todos", "Leafbu", "Blazpu", "Bubble"},
+    Callback = function(Value)
+        evomonSelecionado = Value
+    end
+})
+
+TargetTab:AddToggle({
+    Name = "Ir até o Evomon Selecionado",
+    Default = false,
+    Callback = function(State)
+        autoIrAteEvomon = State
+    end
+})
+
+-- ABA 2: TELEPORTES
+local TeleportTab = Window:MakeTab({
+    Name = "Teleportes",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
+})
+
+TeleportTab:AddSection({ Name = "Locais do Mapa" })
 
 TeleportTab:AddDropdown({
     Name = "Selecione o Destino",
@@ -256,16 +172,18 @@ TeleportTab:AddButton({
     Name = "Teleportar Agora",
     Callback = function()
         local pos = LocaisEvomon[ilhaSelecionada]
-        if pos then
-            teleportarPara(pos)
-        end
+        if pos then teleportarPara(pos) end
     end
 })
 
---- ABA DE AUTO FARM ---
-AutoFarmTab:AddSection({
-    Name = "Automação de Batalha"
+-- ABA 3: AUTO FARM
+local AutoFarmTab = Window:MakeTab({
+    Name = "Auto Farm",
+    Icon = "rbxassetid://4483345998",
+    PremiumOnly = false
 })
+
+AutoFarmTab:AddSection({ Name = "Automação de Batalha" })
 
 AutoFarmTab:AddToggle({
     Name = "Auto Attack",
@@ -282,6 +200,8 @@ AutoFarmTab:AddToggle({
         autoCatch = State
     end
 })
--- Finaliza e carrega a interface gráfica
+
+-- =================================================================
+-- 6. INICIALIZAÇÃO DA INTERFACE
+-- =================================================================
 OrionLib:Init()
-print("Sua Posição:", game.Players.LocalPlayer.Character.HumanoidRootPart.Position)
